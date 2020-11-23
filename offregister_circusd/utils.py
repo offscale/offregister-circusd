@@ -19,7 +19,7 @@ import offregister_python.ubuntu as offregister_python_ubuntu
 
 circus_dir = partial(
     path.join,
-    path.dirname(resource_filename("offregister_circus", "__init__.py")),
+    path.dirname(resource_filename("offregister_circusd", "__init__.py")),
     "data",
 )
 
@@ -49,16 +49,20 @@ def _install_backend(
         parsed_database_uri = urlparse(database_uri)
 
         created = postgres.setup_users(
-            create={
-                "user": parsed_database_uri.username,
-                "password": parsed_database_uri.password,
-                "dbname": parsed_database_uri.path[1:],
-            },
+            create=(
+                {
+                    "user": parsed_database_uri.username,
+                    "password": parsed_database_uri.password,
+                    "dbname": parsed_database_uri.path[1:],
+                },
+            ),
             connection_str=database_uri,
         )
         assert created is not None
 
-    clone_or_update(team=team, repo=repo, use_sudo=use_sudo, to_dir=backend_root)
+    clone_or_update(
+        team=team, repo=repo, use_sudo=use_sudo, to_dir=backend_root, branch="master"
+    )
     offregister_python_ubuntu.install_venv0(
         virtual_env=backend_virtual_env, python3=True
     )

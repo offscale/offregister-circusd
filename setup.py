@@ -9,7 +9,7 @@ from ast import parse
 from distutils.sysconfig import get_python_lib
 
 if __name__ == "__main__":
-    package_name = "offregister_circus"
+    package_name = "offregister_circusd"
 
     with open(path.join(package_name, "__init__.py")) as f:
         __author__, __version__ = map(
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         name=package_name,
         author=__author__,
         version=__version__,
-        description="Taiga deployment module for Fabric (offregister)",
+        description="Offregister implementation of Circus, to setup and serve python APIs",
         classifiers=[
             "Development Status :: 7 - Inactive",
             "Intended Audience :: Developers",
@@ -42,6 +42,7 @@ if __name__ == "__main__":
             "License :: OSI Approved :: Apache Software License",
             "Programming Language :: Python",
             "Programming Language :: Python :: 2.7",
+            "Programming Language :: Python :: 3",
         ],
         test_suite=package_name + ".tests",
         packages=find_packages(),
