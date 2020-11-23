@@ -1,21 +1,17 @@
-from urllib.parse import urlparse
-
-from offregister_fab_utils.fs import cmd_avail
-from offregister_fab_utils.misc import get_user_group_tuples
-
 from functools import partial
 from os import path
+from urllib.parse import urlparse
 
-from offregister_fab_utils.ubuntu.systemd import restart_systemd
-from pkg_resources import resource_filename
-
+import offregister_python.ubuntu as offregister_python_ubuntu
 from fabric.api import run, shell_env
 from fabric.contrib.files import upload_template, exists
 from fabric.operations import sudo, _run_command
-
+from offregister_fab_utils.fs import cmd_avail
 from offregister_fab_utils.git import clone_or_update
+from offregister_fab_utils.misc import get_user_group_tuples
+from offregister_fab_utils.ubuntu.systemd import restart_systemd
 from offregister_postgres import ubuntu as postgres
-import offregister_python.ubuntu as offregister_python_ubuntu
+from pkg_resources import resource_filename
 
 circus_dir = partial(
     path.join,
@@ -64,17 +60,11 @@ def _install_backend(
         team=team, repo=repo, use_sudo=use_sudo, to_dir=backend_root, branch="master"
     )
     offregister_python_ubuntu.install_venv0(
-        virtual_env=backend_virtual_env, python3=True
+        virtual_env=backend_virtual_env, python3=True, packages=("gunicorn", "uwsgi")
     )
     offregister_python_ubuntu.install_package1(
         package_directory=backend_root, virtual_env=backend_virtual_env
     )
-
-    # UWSGI
-    with shell_env(
-        VIRTUAL_ENV=backend_virtual_env, PATH="{}/bin:$PATH".format(backend_virtual_env)
-    ):
-        run_cmd("pip3 install uwsgi")
 
     if not exists("/etc/systemd/system"):
         raise NotImplementedError("Non SystemD platforms")
@@ -89,9 +79,10 @@ def _install_backend(
         )
     (uid, user), (gid, group) = get_user_group_tuples(remote_user)
 
+    uwsgi_service = "/etc/systemd/system/{name}-uwsgi.service".format(name=name)
     upload_template(
         circus_dir("uwsgi.service"),
-        "/etc/systemd/system/{name}-uwsgi.service".format(name=name),
+        uwsgi_service,
         context={
             "USER": user,
             "GROUP": group,
@@ -100,8 +91,17 @@ def _install_backend(
             "UID": uid,
             "GID": gid,
             "VENV": backend_virtual_env,
+            "BACKEND_ROOT": backend_root,
+            "SERVICE_USER": "ubuntu",
+            "NAME": name,
         },
         use_sudo=True,
+        backup=False,
+        mode=644,
+    )
+    grp = sudo("id -gn", quiet=True)
+    sudo(
+        "chown {grp}:{grp} {uwsgi_service}".format(grp=grp, uwsgi_service=uwsgi_service)
     )
     restart_systemd("{name}-uwsgi".format(name=name))
 
@@ -118,6 +118,8 @@ def _setup_circus(
     backend_virtual_env,
     database_uri,
     backend_root,
+    backend_logs_root,
+    port
 ):
     sudo("mkdir -p {circus_virtual_env}".format(circus_virtual_env=circus_virtual_env))
     group_user = run(
@@ -132,7 +134,8 @@ def _setup_circus(
     is_ubuntu = "Ubuntu" in uname
     if is_ubuntu:
         offregister_python_ubuntu.install_venv0(
-            python3=True, virtual_env=circus_virtual_env
+            python3=True,
+            virtual_env=circus_virtual_env,
         )
     else:
         run('python3 -m venv "{virtual_env}"'.format(virtual_env=circus_virtual_env))
@@ -141,20 +144,34 @@ def _setup_circus(
     ):
         run("pip install circus")
     conf_dir = "/etc/circus/conf.d"  # '/'.join((backend_root, 'config'))
-    sudo("mkdir -p {conf_dir}".format(conf_dir=conf_dir))
+    sudo(
+        "mkdir -p {conf_dir} {backend_logs_root}".format(
+            conf_dir=conf_dir, backend_logs_root=backend_logs_root
+        )
+    )
     py_ver = run(
         "{virtual_env}/bin/python --version".format(virtual_env=backend_virtual_env)
     ).partition(" ")[2][:3]
+    sudo(
+        "touch {backend_logs_root}/gunicorn.{{stderr,stdout}}.log".format(
+            backend_logs_root=backend_logs_root
+        )
+    )
     upload_template(
         circus_dir("circus.ini"),
         "{conf_dir}/".format(conf_dir=conf_dir),
         context={
-            "HOME": backend_root,
+            "HOME": backend_logs_root,
+            "BACKEND_LOGS_ROOT": backend_logs_root,
+            "BACKEND_ROOT": backend_root,
             "NAME": name,
             "USER": remote_user,
             "VENV": backend_virtual_env,
             "PYTHON_VERSION": py_ver,
+            "PORT": port,
         },
+        backup=False,
+        mode=644,
         use_sudo=True,
     )
     circusd_context = {
@@ -168,6 +185,8 @@ def _setup_circus(
             circus_dir("circusd.launchd.xml"),
             "{home}/Library/LaunchAgents/io.readthedocs.circus.plist".format(home=home),
             context=circusd_context,
+            backup=False,
+            mode=644,
         )
     elif exists("/etc/systemd/system"):
         upload_template(
@@ -175,6 +194,8 @@ def _setup_circus(
             "/etc/systemd/system/",
             context=circusd_context,
             use_sudo=True,
+            backup=False,
+            mode=644,
         )
     else:
         upload_template(
@@ -182,5 +203,7 @@ def _setup_circus(
             "/etc/init/",
             context=circusd_context,
             use_sudo=True,
+            backup=False,
+            mode=644,
         )
     return circus_virtual_env, database_uri
