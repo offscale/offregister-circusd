@@ -7,7 +7,7 @@ Type=simple
 ExecReload="%(CIRCUS_VENV)s/bin/circusctl" reload
 ExecStart="%(CIRCUS_VENV)s/bin/circusd" "%(CONF_DIR)s/circus.ini"
 Restart=always
-RestartSec=5
+RestartSec=5%(ENV)s
 
 [Install]
 WantedBy=default.target

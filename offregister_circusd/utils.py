@@ -22,16 +22,17 @@ circus_dir = partial(
 
 def _install_backend(
     backend_root,
+    name,
     remote_user,
     backend_virtual_env,
     team,
     repo,
     database_uri,
+    env_vars,
     install_postgres=True,
     create_postgres_database=True,
     use_sudo=True,
 ):
-    name = repo[repo.rfind("/") + 1 :]
     uname = run("uname -v")
     is_ubuntu = "Ubuntu" in uname
     run_cmd = partial(_run_command, sudo=use_sudo)
@@ -86,7 +87,6 @@ def _install_backend(
         context={
             "USER": user,
             "GROUP": group,
-            "PORT": 8001,
             "{}_BACK".format(name.upper()): "{}/{}".format(backend_root, name),
             "UID": uid,
             "GID": gid,
@@ -94,10 +94,11 @@ def _install_backend(
             "BACKEND_ROOT": backend_root,
             "SERVICE_USER": "ubuntu",
             "NAME": name,
+            "ENV": env_vars,
         },
         use_sudo=True,
         backup=False,
-        mode=644,
+        mode=0o644,
     )
     grp = sudo("id -gn", quiet=True)
     sudo(
@@ -117,9 +118,10 @@ def _setup_circus(
     circus_virtual_env,
     backend_virtual_env,
     database_uri,
+    env_vars,
     backend_root,
     backend_logs_root,
-    port
+    port,
 ):
     sudo("mkdir -p {circus_virtual_env}".format(circus_virtual_env=circus_virtual_env))
     group_user = run(
@@ -169,9 +171,10 @@ def _setup_circus(
             "VENV": backend_virtual_env,
             "PYTHON_VERSION": py_ver,
             "PORT": port,
+            "ENV": env_vars,
         },
         backup=False,
-        mode=644,
+        mode=0o644,
         use_sudo=True,
     )
     circusd_context = {
@@ -179,6 +182,7 @@ def _setup_circus(
         "CONF_DIR": conf_dir,
         "BACKEND_ROOT": backend_root,
         "NAME": name,
+        "ENV": env_vars,
     }
     if uname.startswith("Darwin"):
         upload_template(
@@ -186,16 +190,23 @@ def _setup_circus(
             "{home}/Library/LaunchAgents/io.readthedocs.circus.plist".format(home=home),
             context=circusd_context,
             backup=False,
-            mode=644,
+            mode=0o644,
         )
     elif exists("/etc/systemd/system"):
+        remote_service_name = "/etc/systemd/system/circusd.service"
         upload_template(
-            circus_dir("circusd.service"),
-            "/etc/systemd/system/",
+            circus_dir(remote_service_name[remote_service_name.rfind("/") + 1 :]),
+            remote_service_name,
             context=circusd_context,
             use_sudo=True,
             backup=False,
-            mode=644,
+            mode=0o644,
+        )
+        sudo(
+            "chown {grp}:{grp} {remote_service_name}"
+            "".format(
+                grp=sudo("id -gn", quiet=True), remote_service_name=remote_service_name
+            )
         )
     else:
         upload_template(
@@ -204,6 +215,6 @@ def _setup_circus(
             context=circusd_context,
             use_sudo=True,
             backup=False,
-            mode=644,
+            mode=0o644,
         )
     return circus_virtual_env, database_uri

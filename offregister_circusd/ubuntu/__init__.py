@@ -24,23 +24,36 @@ def install0(*args, **kwargs):
     database_uri = kwargs.get("BACKEND_DATABASE_URI", kwargs["RDBMS_URI"])
     if not isinstance(database_uri, str):
         database_uri = "".join(map(str, database_uri))
+    name = kwargs["GIT_REPO"][kwargs["GIT_REPO"].rfind("/") + 1 :].replace("-", "_")
+    env_vars = "\n{}".format("\n".join(
+        "{key}={val}".format(
+            key=key,
+            val="".join(map(str, val))
+            if isinstance(val, (list, tuple))
+            else val,
+        )
+        for key, val in kwargs.get("BACKEND_ENV_VARS", {}).items()
+    ))
     _install_backend(
         backend_root=kwargs["BACKEND_ROOT"],
+        name=name,
         remote_user=remote_user,
         backend_virtual_env=kwargs["BACKEND_VIRTUAL_ENV"],
         team=kwargs["GIT_TEAM"],
         repo=kwargs["GIT_REPO"],
         database_uri=database_uri,
+        env_vars="Environment='".join(env_vars),
     )
     _setup_circus(
         home=_run_command("echo $HOME", quiet=True, sudo=use_sudo),
-        name=kwargs["GIT_REPO"][kwargs["GIT_REPO"].rfind("/") + 1 :],
+        name=name,
         remote_user=remote_user,
         circus_virtual_env=kwargs.get("CIRCUS_VIRTUALENV", "/opt/venvs/circus"),
         backend_virtual_env=kwargs["BACKEND_VIRTUAL_ENV"],
         database_uri=database_uri,
+        env_vars=env_vars,
         backend_root=kwargs["BACKEND_ROOT"],
         backend_logs_root=kwargs["BACKEND_LOGS_ROOT"],
-        port=int(kwargs.get("BACKEND_PORT", "8001"))
+        port=int(kwargs.get("BACKEND_PORT", "8001")),
     )
     return restart_systemd("circusd")

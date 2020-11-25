@@ -5,11 +5,11 @@ After=syslog.target network.target nss-lookup.target
 [Service]
 Type=simple
 WorkingDirectory=%(BACKEND_ROOT)s
-ExecStart='%(VENV)s/bin/uwsgi' --uid '%(UID)d' --gid '%(GID)d' --http ':%(PORT)d' --module '%(NAME)s.wsgi'
+ExecStart='%(VENV)s/bin/uwsgi' --uid '%(UID)d' --gid '%(GID)d' --socket '/tmp/%(NAME)s.uwsgi.sock' --module '%(NAME)s'
 User=%(USER)s
 Group=%(GROUP)s
 Restart=always
-RestartSec=5
+RestartSec=5%(ENV)s
 
 [Install]
 WantedBy=default.target
