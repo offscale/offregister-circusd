@@ -5,7 +5,7 @@ from offregister_fab_utils.ubuntu.systemd import restart_systemd
 from offregister_circusd.utils import _install_backend, _setup_circus
 
 
-def install0(*args, **kwargs):
+def install0(c, *args, **kwargs):
     apt_depends("libpcre3", "libpcre3-dev")
     # ^ Needed for uWSGI
 
@@ -25,15 +25,15 @@ def install0(*args, **kwargs):
     if not isinstance(database_uri, str):
         database_uri = "".join(map(str, database_uri))
     name = kwargs["GIT_REPO"][kwargs["GIT_REPO"].rfind("/") + 1 :].replace("-", "_")
-    env_vars = "\n{}".format("\n".join(
-        "{key}={val}".format(
-            key=key,
-            val="".join(map(str, val))
-            if isinstance(val, (list, tuple))
-            else val,
+    env_vars = "\n{}".format(
+        "\n".join(
+            "{key}={val}".format(
+                key=key,
+                val="".join(map(str, val)) if isinstance(val, (list, tuple)) else val,
+            )
+            for key, val in kwargs.get("BACKEND_ENV_VARS", {}).items()
         )
-        for key, val in kwargs.get("BACKEND_ENV_VARS", {}).items()
-    ))
+    )
     _install_backend(
         backend_root=kwargs["BACKEND_ROOT"],
         name=name,

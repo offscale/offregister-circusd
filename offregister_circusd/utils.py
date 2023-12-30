@@ -4,8 +4,8 @@ from urllib.parse import urlparse
 
 import offregister_python.ubuntu as offregister_python_ubuntu
 from fabric.api import run, shell_env
-from fabric.contrib.files import upload_template, exists
-from fabric.operations import sudo, _run_command
+from fabric.contrib.files import exists, upload_template
+from fabric.operations import _run_command, sudo
 from offregister_fab_utils.fs import cmd_avail
 from offregister_fab_utils.git import clone_or_update
 from offregister_fab_utils.misc import get_user_group_tuples
