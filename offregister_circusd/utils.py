@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from functools import partial
 from os import path
 from urllib.parse import urlparse

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from fabric.operations import _run_command
 from offregister_fab_utils.apt import apt_depends
 from offregister_fab_utils.ubuntu.systemd import restart_systemd
